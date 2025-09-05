@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Students</title>
+    <style>
+      body { font-family: system-ui, Arial, sans-serif; margin: 24px; }
+      h1 { margin: 0 0 16px; }
+      form, table { margin-top: 16px; }
+      input { margin: 4px; padding: 6px 8px; }
+      button { padding: 6px 10px; }
+      table { border-collapse: collapse; width: 100%; max-width: 720px; }
+      th, td { border: 1px solid #ddd; padding: 8px; }
+      tr:nth-child(even) { background: #fafafa; }
+      .row-actions button { margin-right: 6px; }
+      .muted { color: #666; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>Students</h1>
+
+    <div id="status" class="muted"></div>
+
+    <form id="create-form">
+      <strong>Add student:</strong>
+      <input type="text" id="name" placeholder="Name" required />
+      <input type="number" id="roll" placeholder="Roll" required />
+      <input type="text" id="city" placeholder="City" required />
+      <button type="submit">Create</button>
+    </form>
+
+    <table id="students-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Roll</th>
+          <th>City</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <script>
+      const apiBase = '/stuinfo/';
+      const tableBody = document.querySelector('#students-table tbody');
+      const statusEl = document.getElementById('status');
+
+      function setStatus(text) {
+        statusEl.textContent = text || '';
+      }
+
+      async function fetchStudents() {
+        setStatus('Loading...');
+        const res = await fetch(apiBase);
+        const data = await res.json();
+        renderRows(Array.isArray(data) ? data : []);
+        setStatus('');
+      }
+
+      function renderRows(rows) {
+        tableBody.innerHTML = '';
+        for (const row of rows) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${row.id ?? ''}</td>
+            <td><input value="${row.name ?? ''}" data-field="name" /></td>
+            <td><input type="number" value="${row.roll ?? ''}" data-field="roll" /></td>
+            <td><input value="${row.city ?? ''}" data-field="city" /></td>
+            <td class="row-actions">
+              <button data-action="save" ${row.id ? '' : 'disabled'}>Save</button>
+              <button data-action="delete" ${row.id ? '' : 'disabled'}>Delete</button>
+            </td>
+          `;
+          tr.dataset.id = row.id;
+          tableBody.appendChild(tr);
+        }
+      }
+
+      document.getElementById('create-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('name').value.trim();
+        const roll = Number(document.getElementById('roll').value);
+        const city = document.getElementById('city').value.trim();
+        if (!name || !city || !Number.isFinite(roll)) return;
+        setStatus('Creating...');
+        await fetch(apiBase, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, roll, city })
+        });
+        (e.target).reset();
+        await fetchStudents();
+      });
+
+      tableBody.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const tr = btn.closest('tr');
+        const id = tr?.dataset?.id;
+        if (!id) return;
+        const inputs = tr.querySelectorAll('input');
+        const payload = {};
+        inputs.forEach(i => payload[i.dataset.field] = i.type === 'number' ? Number(i.value) : i.value);
+
+        if (btn.dataset.action === 'save') {
+          setStatus('Saving...');
+          await fetch(apiBase + id, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          await fetchStudents();
+        }
+
+        if (btn.dataset.action === 'delete') {
+          if (!confirm('Delete this student?')) return;
+          setStatus('Deleting...');
+          await fetch(apiBase + id, { method: 'DELETE' });
+          await fetchStudents();
+        }
+      });
+
+      fetchStudents();
+    </script>
+  </body>
+  </html>
+
+
+
+
